@@ -1,5 +1,5 @@
 <template>
-    <details :id="href" :open="!collapsed">
+    <details :id="href" :open="!collapsed" @toggle="syncState">
         <summary
             class="collapse-button"
             :class="{collapsed}"
@@ -25,9 +25,9 @@
 </template>
 
 <script setup lang="ts">
-    import {ref, computed, watch} from "vue"
-    import {useBrowserLocation} from "@vueuse/core"
-    import {KsIcon} from "@kestra-io/design-system"
+    import { ref, computed, watch } from "vue"
+    import { useRoute, useRouter } from "vue-router"
+    import { KsIcon } from "@kestra-io/design-system"
     import ChevronDown from "vue-material-design-icons/ChevronDown.vue"
     import ChevronUp from "vue-material-design-icons/ChevronUp.vue"
 
@@ -47,8 +47,21 @@
     const emit = defineEmits<{expand: []}>()
 
     const collapsed = ref(true)
-    const location = useBrowserLocation()
+    const route = useRoute()
+    const router = useRouter()
+    
     const bodyHash = computed(() => `#${props.href}-body`)
+    const mainHash = computed(() => `#${props.href}`)
+
+    // FIX 1: Catch native browser <details> openings (when navigating via anchor links)
+    const syncState = (event: Event) => {
+        const target = event.target as HTMLDetailsElement;
+        // If DOM opened natively but Vue still thinks it's collapsed, sync them
+        if (target.open === collapsed.value) {
+            collapsed.value = !target.open;
+            if (!collapsed.value) emit("expand");
+        }
+    }
 
     const handleToggle = (event: Event) => {
         event.preventDefault()
@@ -62,10 +75,11 @@
 
         if (props.noUrlChange) return
 
+        // FIX 2: Use Vue Router instead of history.replaceState to prevent "zombie hashes" across tabs
         if (collapsed.value) {
-            history.replaceState(null, "", window.location.pathname + window.location.search)
+            router.replace({ hash: '' }).catch(() => {})
         } else {
-            window.location.hash = bodyHash.value
+            router.replace({ hash: bodyHash.value }).catch(() => {})
         }
     }
 
@@ -75,8 +89,9 @@
         }
     }, {immediate: true})
 
-    watch(() => location.value.hash, (hash) => {
-        if (hash === bodyHash.value && collapsed.value) {
+    // FIX 3: Watch Vue Router's hash and check for BOTH #definitions and #definitions-body
+    watch(() => route.hash, (hash) => {
+        if ((hash === bodyHash.value || hash === mainHash.value) && collapsed.value) {
             collapsed.value = false
         }
     }, {immediate: true})
