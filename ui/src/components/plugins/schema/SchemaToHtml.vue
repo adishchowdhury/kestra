@@ -121,7 +121,7 @@
             </div>
 
             <SchemaPropertiesSection
-                v-if="schema.properties?.$metrics"
+    v-if="(schema.properties?.$metrics || schema?.$metrics) && Object.keys(metrics).length > 0"
                 class="plugin-section"
                 :properties="metrics"
                 :definitions="schema.definitions"
@@ -236,13 +236,14 @@
 
     const examples = computed(() => props.schema.properties?.$examples)
 
-    const metrics = computed<Record<string, JSONProperty>>(() => Object.fromEntries(
-        props.schema.properties?.$metrics?.map((metric) => [metric.name, {...metric, name: undefined}]) ?? [],
-    ))
+    const metrics = computed<Record<string, JSONProperty>>(() => {
+    const list = props.schema.properties?.$metrics ?? props.schema?.$metrics ?? []
+    return Object.fromEntries(list.map((metric) => [metric.name, {...metric, name: undefined}]))
+})
 
     const nonDeprecatedDefinitions = computed(() =>
-        Object.entries(props.schema.definitions ?? {}).filter(([, value]) => !isDeprecated(value)),
-    )
+    Object.entries(props.schema.definitions ?? props.schema?.$defs ?? {}).filter(([, value]) => !isDeprecated(value)),
+)
 
     const normalizeColons = (text: string) => text.replace(COLON_NORMALIZE_REGEX, ": ")
 
